@@ -1,0 +1,462 @@
+<Window x:Class="PodkopScanner.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Podkop Network Scanner" Height="900" Width="1440" MinWidth="1050" MinHeight="680"
+        WindowStartupLocation="CenterScreen" Icon="Assets/app.ico">
+    <Window.Resources>
+        <Style x:Key="TrustCell" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding TrustText}" Value="Высокая"><Setter Property="Foreground" Value="{StaticResource Good}" /></DataTrigger>
+                <DataTrigger Binding="{Binding TrustText}" Value="Средняя"><Setter Property="Foreground" Value="{StaticResource Warn}" /></DataTrigger>
+                <DataTrigger Binding="{Binding TrustText}" Value="Низкая"><Setter Property="Foreground" Value="{StaticResource Bad}" /></DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="EntryRowStyle" TargetType="DataGridRow">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Disabled}" Value="True">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LiveRowStyle" TargetType="DataGridRow">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Undetermined}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Sub}" />
+                    <Setter Property="FontStyle" Value="Italic" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <ContextMenu x:Key="EntryMenu" x:Shared="False" Opened="EntryMenu_Opened">
+            <MenuItem Header="Включить в Podkop" Click="CtxInclude_Click" />
+            <MenuItem Header="Исключить из Podkop" Click="CtxExclude_Click" />
+            <MenuItem Header="Вернуть выбор по умолчанию" Click="CtxDefault_Click" />
+            <Separator />
+            <MenuItem Header="Подтвердить вручную" Click="CtxManual_Click" />
+            <MenuItem Header="Снять ручное подтверждение" Click="CtxUnmanual_Click" />
+            <MenuItem Header="Отключить запись" Click="CtxDisable_Click" />
+            <MenuItem Header="Включить запись обратно" Click="CtxEnable_Click" />
+            <MenuItem Header="Назначение" Tag="category" />
+            <Separator />
+            <MenuItem Header="В белый список (всегда включать)" Click="CtxWhitelist_Click" />
+            <MenuItem Header="В чёрный список (никогда не добавлять)" Click="CtxBlacklist_Click" />
+            <Separator />
+            <MenuItem Header="Копировать адреса" Click="CtxCopy_Click" />
+            <MenuItem Header="Определить ASN и оператора" Click="Asn_Click" />
+            <MenuItem Header="Разрешить через DNS сейчас" Click="CtxResolve_Click" />
+            <Separator />
+            <MenuItem Header="Удалить записи" Click="CtxDelete_Click" />
+        </ContextMenu>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="285" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═════════ Левая панель: проекты ═════════ -->
+        <Border Style="{StaticResource Card}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                    <TextBlock Text="PODKOP NETWORK SCANNER" FontWeight="Bold" FontSize="14" Foreground="{StaticResource Accent}" />
+                    <TextBlock Text="Сбор доменов и IP для Podkop / OpenWrt" Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                    <Border Background="{StaticResource Panel2}" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock x:Name="AdminText" TextWrapping="Wrap" FontSize="12" />
+                            <TextBlock x:Name="DriverText" TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0" Style="{StaticResource Caption}" />
+                            <Button x:Name="ElevateButton" Content="Перезапустить от администратора" Margin="0,8,0,0" Click="Elevate_Click" />
+                        </StackPanel>
+                    </Border>
+                    <Button Content="⚙  Настройки и подключение" Click="Settings_Click" Margin="0" HorizontalContentAlignment="Left" />
+                </StackPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                    <TextBlock Text="Мои проекты" Style="{StaticResource Header}" FontSize="14" VerticalAlignment="Center" />
+                </DockPanel>
+                <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                    <Button Content="+ Сайт" Click="NewSite_Click" Margin="0,0,6,6" />
+                    <Button Content="+ Программа" Click="NewProgram_Click" Margin="0,0,6,6" />
+                    <Button Content="Переименовать" Click="RenameProject_Click" Margin="0,0,6,6" />
+                    <Button Content="Удалить" Style="{StaticResource Danger}" Click="DeleteProject_Click" Margin="0,0,6,6" />
+                </WrapPanel>
+                <ListBox x:Name="ProjectsList" SelectionChanged="ProjectsList_SelectionChanged" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Caption}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- ═════════ Правая часть ═════════ -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Заголовок проекта -->
+            <DockPanel Margin="2,0,0,6">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="RouteBadge" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock x:Name="ProjectTitle" Text="Выберите или создайте проект" Style="{StaticResource Header}" FontSize="18" />
+                    <TextBlock x:Name="ProjectSubtitle" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Режимы анализа -->
+            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="10,4,10,10">
+                <TabControl x:Name="ModeTabs" Padding="0,10,0,0">
+                    <TabItem Header="🌐  Анализ сайта">
+                        <StackPanel>
+                            <TextBlock Text="Вставьте ссылку на сайт" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="230" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="UrlBox" FontSize="14" KeyDown="UrlBox_KeyDown" />
+                                <TextBlock Grid.Column="1" Text="Подключение:" VerticalAlignment="Center" Margin="12,0,6,0" Style="{StaticResource Caption}" />
+                                <ComboBox Grid.Column="2" x:Name="WebRouteCombo" SelectionChanged="WebRouteCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Напрямую" />
+                                    <ComboBoxItem Content="Через прокси (из настроек)" />
+                                    <ComboBoxItem x:Name="SystemProxyItem" Content="Системный прокси Windows" />
+                                </ComboBox>
+                            </Grid>
+                            <WrapPanel Margin="0,8,0,0">
+                                <CheckBox x:Name="AutoCrawlCheck" Content="Ограниченный автообход страниц сайта" ToolTip="Откроет не более N внутренних страниц того же сайта во второй вкладке, с паузой. Ссылки выхода и удаления пропускаются." />
+                                <CheckBox x:Name="WebResolveCheck" Content="Разрешать найденные домены через DNS" IsChecked="True" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button x:Name="WebStartButton" Content="▶  Начать анализ" Style="{StaticResource Primary}" Click="WebStart_Click" />
+                                <Button x:Name="WebStopButton" Content="■  Остановить" Click="WebStop_Click" IsEnabled="False" />
+                                <Button x:Name="InstallChromiumButton" Content="Установить Chromium (~170 МБ)" Click="InstallChromium_Click" Visibility="Collapsed" />
+                                <TextBlock x:Name="WebHint" Style="{StaticResource Caption}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="560"
+                                           Text="Откроется настоящий браузер: входите в аккаунт, смотрите видео, переходите по разделам — все запросы будут учтены. Пароли, cookies и содержимое страниц не сохраняются." />
+                            </WrapPanel>
+                        </StackPanel>
+                    </TabItem>
+                    <TabItem Header="🎮  Анализ программы">
+                        <StackPanel>
+                            <WrapPanel>
+                                <Button Content="Выбрать EXE…" Click="PickExe_Click" />
+                                <Button Content="Выбрать запущенную программу…" Click="PickProcess_Click" />
+                                <TextBlock x:Name="TargetText" VerticalAlignment="Center" Margin="6,0,0,0" Text="Программа не выбрана" TextTrimming="CharacterEllipsis" MaxWidth="600" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,8,0,0">
+                                <CheckBox x:Name="ChildrenCheck" Content="Учитывать дочерние процессы" IsChecked="True" />
+                                <CheckBox x:Name="FolderCheck" Content="Учитывать процессы из папки программы" ToolTip="Связь по расположению файла, а не по дереву процессов — такие адреса получают среднюю достоверность." />
+                                <CheckBox x:Name="FlushDnsCheck" Content="Очистить DNS-кэш Windows перед стартом" IsChecked="True" ToolTip="Как ipconfig /flushdns: иначе имена, уже лежащие в кэше, не будут запрошены и не попадут в результаты." />
+                                <CheckBox x:Name="LaunchCheck" Content="Запустить выбранный EXE после старта мониторинга" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button x:Name="ProcStartButton" Content="▶  Начать мониторинг" Style="{StaticResource Primary}" Click="ProcStart_Click" />
+                                <Button x:Name="ProcStopButton" Content="■  Остановить" Click="ProcStop_Click" IsEnabled="False" />
+                                <TextBlock x:Name="CaptureText" Style="{StaticResource Caption}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="650" />
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Text="Если программа работает через ваш прокси-клиент или VPN/TUN: соединения с адресом самого прокси/VPN-сервера не добавляются; при TUN с fake-ip (198.18.x.x) реальные IP не видны — опирайтесь на найденные домены. Обычный SOCKS5 не может сам направить трафик произвольного EXE — это делают TUN-клиенты; сканер только наблюдает и ничего не перенаправляет." />
+                        </StackPanel>
+                    </TabItem>
+                    <TabItem Header="📥  Импорт списков">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBox x:Name="ImportText" Style="{StaticResource Mono}" Height="84" ToolTip="Вставьте список: домены, IP, CIDR, URL, CSV, JSON, наборы sing-box, вывод tcpdump/tshark." />
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <Button Content="Из файла (TXT/CSV/JSON/LST)…" Click="ImportFile_Click" Margin="0,0,0,6" />
+                                <Button Content="Списки itdoginfo/allow-domains…" Click="ImportAllowDomains_Click" Margin="0,0,0,6" />
+                            </StackPanel>
+                            <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="ImportUrl" ToolTip="Прямая ссылка, GitHub (blob/raw) или Gist" />
+                                <Button Grid.Column="1" Content="Загрузить по ссылке" Click="ImportUrl_Click" Margin="8,0,0,0" />
+                            </Grid>
+                            <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                                <Button Content="Распознать" Click="ImportParse_Click" />
+                                <Button x:Name="ImportAddButton" Content="Добавить в проект" Style="{StaticResource Primary}" Click="ImportAdd_Click" IsEnabled="False" />
+                                <CheckBox x:Name="ImportIsLog" Content="Это журнал роутера/прокси (tcpdump, tshark, sing-box, PCAPdroid)" VerticalAlignment="Center" />
+                                <TextBlock x:Name="ImportSummary" Style="{StaticResource Caption}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="600" />
+                            </WrapPanel>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Border>
+
+            <!-- Счётчики и журнал -->
+            <Grid Grid.Row="2" Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource Card}" Padding="14,8" Margin="0,0,8,0">
+                    <StackPanel>
+                        <TextBlock><Run Text="Доменов: " Foreground="{StaticResource Sub}" /><Run x:Name="CountDomains" Text="0" FontWeight="Bold" FontSize="15" /></TextBlock>
+                        <TextBlock><Run Text="IP-адресов: " Foreground="{StaticResource Sub}" /><Run x:Name="CountIps" Text="0" FontWeight="Bold" FontSize="15" /></TextBlock>
+                        <TextBlock><Run Text="Подсетей: " Foreground="{StaticResource Sub}" /><Run x:Name="CountNets" Text="0" FontWeight="Bold" FontSize="15" /></TextBlock>
+                        <TextBlock><Run Text="В экспорте: " Foreground="{StaticResource Sub}" /><Run x:Name="CountIncluded" Text="0" FontWeight="Bold" Foreground="{StaticResource Good}" /></TextBlock>
+                    </StackPanel>
+                </Border>
+                <ListBox Grid.Column="1" x:Name="LogList" Height="96" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- Результаты -->
+            <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,8,0,0" Padding="10,8,10,10">
+              <DockPanel>
+                <WrapPanel DockPanel.Dock="Top" x:Name="FilterBar">
+                    <TextBox x:Name="SearchBox" Width="220" TextChanged="Filter_Changed" ToolTip="Поиск по адресу, источнику, программе, связанным доменам" Margin="0,0,8,4" />
+                    <ComboBox x:Name="TrustFilter" Width="150" SelectionChanged="Filter_Changed" Margin="0,0,8,4">
+                        <ComboBoxItem Content="Любая достоверность" IsSelected="True" />
+                        <ComboBoxItem Content="Высокая" />
+                        <ComboBoxItem Content="Средняя" />
+                        <ComboBoxItem Content="Низкая" />
+                    </ComboBox>
+                    <ComboBox x:Name="StatusFilter" Width="210" SelectionChanged="Filter_Changed" Margin="0,0,8,4" />
+                    <ComboBox x:Name="CategoryFilter" Width="160" SelectionChanged="Filter_Changed" Margin="0,0,8,4" />
+                    <CheckBox x:Name="OnlyIncludedCheck" Content="Только включённые" Click="Filter_Changed" />
+                    <CheckBox x:Name="HideDisabledCheck" Content="Скрыть отключённые" Click="Filter_Changed" />
+                    <Button Content="⟳  Обновить адреса" Style="{StaticResource Primary}" Click="Refresh_Click" Margin="0,0,6,4" ToolTip="Повторное DNS-разрешение всех доменов проекта и сравнение с прошлыми результатами" />
+                    <Button Content="Официальные диапазоны" Click="Official_Click" Margin="0,0,6,4" ToolTip="Загрузить опубликованные списки (Cloudflare, Google, AWS, Fastly, Telegram, GitHub) и пометить IP" />
+                    <Button Content="ASN" Click="Asn_Click" Margin="0,0,6,4" ToolTip="Определить ASN и оператора выделенных IP (Team Cymru, DNS-запросы)" />
+                    <Button Content="Обобщение…" Click="Generalize_Click" Margin="0,0,6,4" ToolTip="Предложения объединить поддомены в правило родительского домена" />
+                </WrapPanel>
+                <TabControl x:Name="ResultTabs" SelectionChanged="ResultTabs_SelectionChanged">
+                    <TabItem x:Name="DomainsTab" Header="Домены">
+                        <DockPanel>
+                            <TextBox DockPanel.Dock="Bottom" x:Name="DomainDetails" Style="{StaticResource Mono}" Height="96" IsReadOnly="True" Margin="0,6,0,0" FontSize="11" />
+                            <DataGrid x:Name="DomainsGrid" RowStyle="{StaticResource EntryRowStyle}" ContextMenu="{StaticResource EntryMenu}"
+                                      SelectionChanged="Grid_SelectionChanged" Sorting="Grid_Sorting">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="В Podkop" SortMemberPath="Include" Width="70">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate><CheckBox IsChecked="{Binding Include, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" Margin="0" /></DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Адрес" Binding="{Binding Display}" Width="250" IsReadOnly="True" SortMemberPath="SortKey" />
+                                    <DataGridTextColumn Header="Чей домен" Binding="{Binding PartyText}" Width="105" IsReadOnly="True" SortMemberPath="PartySort">
+                                        <DataGridTextColumn.CellStyle>
+                                            <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                                                <Setter Property="ToolTip" Value="{Binding PartyReason}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PartyText}" Value="сторонний"><Setter Property="Foreground" Value="{StaticResource Warn}" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGridTextColumn.CellStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Основной домен" Binding="{Binding Registrable}" Width="130" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Назначение" Binding="{Binding CategoryText}" Width="125" IsReadOnly="True">
+                                        <DataGridTextColumn.CellStyle>
+                                            <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                                                <Setter Property="ToolTip" Value="{Binding CategoryReason}" />
+                                            </Style>
+                                        </DataGridTextColumn.CellStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTemplateColumn Header="Достоверность" SortMemberPath="TrustValue" Width="100">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding TrustText}" Style="{StaticResource TrustCell}" /></DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="200" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Источник" Binding="{Binding Sources}" Width="220" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Программа" Binding="{Binding ProcessInfo}" Width="130" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Протокол" Binding="{Binding Protocols}" Width="100" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Первое обнаружение" Binding="{Binding FirstSeenText}" Width="130" IsReadOnly="True" SortMemberPath="FirstSeen" />
+                                    <DataGridTextColumn Header="Последнее подтверждение" Binding="{Binding LastConfirmedText}" Width="150" IsReadOnly="True" SortMemberPath="LastConfirmedSort" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </TabItem>
+                    <TabItem x:Name="IpsTab" Header="IP и подсети">
+                        <DockPanel>
+                            <TextBox DockPanel.Dock="Bottom" x:Name="IpDetails" Style="{StaticResource Mono}" Height="96" IsReadOnly="True" Margin="0,6,0,0" FontSize="11" />
+                            <DataGrid x:Name="IpsGrid" RowStyle="{StaticResource EntryRowStyle}" ContextMenu="{StaticResource EntryMenu}"
+                                      SelectionChanged="Grid_SelectionChanged" Sorting="Grid_Sorting">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="В Podkop" SortMemberPath="Include" Width="70">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate><CheckBox IsChecked="{Binding Include, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" Margin="0" /></DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Адрес" Binding="{Binding Display}" Width="170" IsReadOnly="True" SortMemberPath="SortKey" />
+                                    <DataGridTextColumn Header="Тип" Binding="{Binding KindText}" Width="65" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Достоверность" SortMemberPath="TrustValue" Width="100">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding TrustText}" Style="{StaticResource TrustCell}" /></DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="200" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Связанные домены" Binding="{Binding LinkedText}" Width="220" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Назначение" Binding="{Binding CategoryText}" Width="115" IsReadOnly="True">
+                                        <DataGridTextColumn.CellStyle>
+                                            <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                                                <Setter Property="ToolTip" Value="{Binding CategoryReason}" />
+                                            </Style>
+                                        </DataGridTextColumn.CellStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Источник" Binding="{Binding Sources}" Width="190" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Программа" Binding="{Binding ProcessInfo}" Width="130" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Протокол" Binding="{Binding Protocols}" Width="100" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Сеть / ASN" Binding="{Binding NetworkText}" Width="200" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Первое обнаружение" Binding="{Binding FirstSeenText}" Width="130" IsReadOnly="True" SortMemberPath="FirstSeen" />
+                                    <DataGridTextColumn Header="Последнее подтверждение" Binding="{Binding LastConfirmedText}" Width="150" IsReadOnly="True" SortMemberPath="LastConfirmedSort" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </TabItem>
+                    <TabItem x:Name="LiveTab" Header="Соединения (live)">
+                        <DockPanel>
+                            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <CheckBox x:Name="ShowUndeterminedCheck" Content="Показывать неопределённые (общие службы Windows)" IsChecked="True" Click="ShowUndetermined_Click" />
+                                <Button Content="Очистить" Click="ClearLive_Click" />
+                                <TextBlock x:Name="LiveInfo" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                            </WrapPanel>
+                            <DataGrid x:Name="LiveGrid" IsReadOnly="True" RowStyle="{StaticResource LiveRowStyle}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Время" Binding="{Binding TimeText}" Width="70" />
+                                    <DataGridTextColumn Header="Программа" Binding="{Binding Process}" Width="140" />
+                                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="60" />
+                                    <DataGridTextColumn Header="Протокол" Binding="{Binding Protocol}" Width="90" />
+                                    <DataGridTextColumn Header="Удалённый адрес" Binding="{Binding Remote}" Width="170" />
+                                    <DataGridTextColumn Header="Порт" Binding="{Binding Port}" Width="55" />
+                                    <DataGridTextColumn Header="Домен" Binding="{Binding Domain}" Width="200" />
+                                    <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="190" />
+                                    <DataGridTextColumn Header="Связь с программой" Binding="{Binding Relation}" Width="170" />
+                                    <DataGridTextColumn Header="Примечание" Binding="{Binding Note}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </TabItem>
+                    <TabItem x:Name="HistoryTab" Header="История">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="Сканирования и проверки" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                <DataGrid x:Name="ScansGrid" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="№" Binding="{Binding Id}" Width="45" />
+                                        <DataGridTextColumn Header="Вид" Binding="{Binding KindText}" Width="120" />
+                                        <DataGridTextColumn Header="Начало" Binding="{Binding StartedText}" Width="120" />
+                                        <DataGridTextColumn Header="Маршрут" Binding="{Binding Route}" Width="140" />
+                                        <DataGridTextColumn Header="Итог" Binding="{Binding Summary}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                            <DockPanel Grid.Column="2">
+                                <TextBlock DockPanel.Dock="Top" Text="Сохранённые версии списков" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <Button Content="Сравнить с текущими списками" Click="VersionDiff_Click" />
+                                    <Button Content="Откатить к версии" Click="VersionRollback_Click" />
+                                </WrapPanel>
+                                <TextBox DockPanel.Dock="Bottom" x:Name="VersionDiffText" Style="{StaticResource Mono}" Height="170" IsReadOnly="True" Margin="0,6,0,0" />
+                                <ListBox x:Name="VersionsList" />
+                            </DockPanel>
+                        </Grid>
+                    </TabItem>
+                    <TabItem x:Name="ExportTab" Header="Экспорт в Podkop">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel Grid.ColumnSpan="3" Margin="0,0,0,6">
+                                <CheckBox x:Name="OptOnlyConfirmed" Content="Только подтверждённые (высокая достоверность / вручную)" Click="ExportOption_Click" />
+                                <CheckBox x:Name="OptSingleCidr" Content="Одиночные IP как /32" IsChecked="True" Click="ExportOption_Click" />
+                                <CheckBox x:Name="OptRedundant" Content="Убирать домены, покрытые родительскими" IsChecked="True" Click="ExportOption_Click"
+                                          ToolTip="Podkop применяет domain_suffix: «example.com» уже охватывает «api.example.com». Покрытие не меняется." />
+                                <CheckBox x:Name="OptAggregate" Content="Точная агрегация подсетей" IsChecked="True" Click="ExportOption_Click"
+                                          ToolTip="Объединяет смежные адреса/сети без добавления ни одного нового адреса." />
+                                <CheckBox x:Name="OptIpv6Json" Content="IPv6 в JSON-наборе sing-box" Click="ExportOption_Click" />
+                            </WrapPanel>
+                            <DockPanel Grid.Row="1">
+                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,4"><Run Text="Список пользовательских доменов" FontWeight="SemiBold" /><Run x:Name="DomainsOutCount" Foreground="{StaticResource Sub}" /></TextBlock>
+                                <Button DockPanel.Dock="Bottom" Content="📋  Скопировать домены" Style="{StaticResource Primary}" Click="CopyDomains_Click" HorizontalAlignment="Left" Margin="0,6,0,0" />
+                                <TextBox x:Name="DomainsOut" Style="{StaticResource Mono}" IsReadOnly="True" />
+                            </DockPanel>
+                            <DockPanel Grid.Row="1" Grid.Column="2">
+                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,4"><Run Text="Список пользовательских подсетей" FontWeight="SemiBold" /><Run x:Name="SubnetsOutCount" Foreground="{StaticResource Sub}" /></TextBlock>
+                                <Button DockPanel.Dock="Bottom" Content="📋  Скопировать IP и подсети" Style="{StaticResource Primary}" Click="CopySubnets_Click" HorizontalAlignment="Left" Margin="0,6,0,0" />
+                                <TextBox x:Name="SubnetsOut" Style="{StaticResource Mono}" IsReadOnly="True" />
+                            </DockPanel>
+                            <WrapPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="0,8,0,0">
+                                <Button Content="Скопировать оба списка по очереди" Click="CopyBoth_Click" Margin="0,0,6,6" />
+                                <Button Content="Скачать domains.txt" Click="SaveDomains_Click" Margin="0,0,6,6" />
+                                <Button Content="Скачать subnets.txt" Click="SaveSubnets_Click" Margin="0,0,6,6" />
+                                <Button Content="Локальные списки .lst…" Click="SaveLst_Click" Margin="0,0,6,6" />
+                                <Button Content="Набор правил sing-box .json…" Click="SaveRuleset_Click" Margin="0,0,6,6" />
+                                <Button Content="Скомпилировать .srs…" Click="SaveSrs_Click" Margin="0,0,6,6" />
+                                <Button Content="Подробный JSON…" Click="SaveDetailedJson_Click" Margin="0,0,6,6" />
+                                <Button Content="Изменения с прошлой версии" Click="ExportChanges_Click" Margin="0,0,6,6" />
+                                <Button Content="Сохранить версию" Click="SaveVersion_Click" Margin="0,0,6,6" />
+                            </WrapPanel>
+                            <TextBlock Grid.Row="3" Grid.ColumnSpan="3" x:Name="ExportWarnings" Foreground="{StaticResource Warn}" TextWrapping="Wrap" FontSize="12" />
+                        </Grid>
+                    </TabItem>
+                    <TabItem x:Name="ExclusionsTab" Header="Исключения">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                           Text="Шаблон: домен (охватывает поддомены), маска со звёздочкой (*.cdn.*), IP или подсеть. Чёрный список — записи не сохраняются при сканировании и импорте. Белый список — записи всегда включаются и не отфильтровываются как локальные." />
+                                <WrapPanel Margin="0,6,0,0">
+                                    <TextBox x:Name="ExclusionPattern" Width="300" />
+                                    <RadioButton x:Name="ExclBlack" Content="Чёрный список" IsChecked="True" Margin="10,5,10,0" />
+                                    <RadioButton x:Name="ExclWhite" Content="Белый список" Margin="0,5,10,0" />
+                                    <CheckBox x:Name="ExclGlobal" Content="Для всех проектов" />
+                                    <Button Content="Добавить" Click="AddExclusion_Click" />
+                                    <Button Content="Удалить выбранное" Click="DeleteExclusion_Click" />
+                                </WrapPanel>
+                            </StackPanel>
+                            <ListBox x:Name="ExclusionsList" />
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
+              </DockPanel>
+            </Border>
+
+            <!-- Строка состояния -->
+            <DockPanel Grid.Row="4" Margin="2,8,0,0">
+                <Button x:Name="CancelOpButton" DockPanel.Dock="Right" Content="Отменить операцию" Visibility="Collapsed" Click="CancelOp_Click" Margin="0" />
+                <ProgressBar x:Name="Busy" DockPanel.Dock="Right" Width="120" Height="6" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,10,0" />
+                <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Grid>
+    </Grid>
+</Window>

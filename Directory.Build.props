@@ -1,0 +1,14 @@
+<Project>
+  <!-- Если путь к проекту очень длинный (>200 символов), задайте PNS_ARTIFACTS=C:\short\path,
+       чтобы bin/obj создавались там: иначе Windows не сможет запустить testhost (ограничение MAX_PATH). -->
+  <PropertyGroup Condition="'$(PNS_ARTIFACTS)' != ''">
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(PNS_ARTIFACTS)</ArtifactsPath>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <!-- Программа только для Windows: не копировать Node.js Playwright для macOS/Linux (~450 МБ). -->
+    <PlaywrightPlatform>win</PlaywrightPlatform>
+  </PropertyGroup>
+</Project>

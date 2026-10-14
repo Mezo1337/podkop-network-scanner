@@ -1,0 +1,136 @@
+<Window x:Class="PodkopScanner.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Настройки" Width="820" Height="820" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Сохранить" Style="{StaticResource Primary}" IsDefault="True" Click="Save_Click" MinWidth="110" />
+            <Button Content="Отмена" IsCancel="True" MinWidth="90" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <GroupBox Header="Источник подключения">
+                    <StackPanel>
+                        <WrapPanel>
+                            <RadioButton x:Name="RouteDirect" Content="A — прямое подключение" GroupName="route" Checked="Route_Changed" />
+                            <RadioButton x:Name="RouteProxy" Content="B — через прокси" GroupName="route" Checked="Route_Changed" />
+                        </WrapPanel>
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,8"
+                                   Text="Маршрут действительно используется браузером при анализе сайта, DNS-over-HTTPS/TCP, проверкой внешнего IP, загрузкой списков. «Напрямую» игнорирует системный прокси Windows." />
+                        <Grid x:Name="ProxyPanel">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Ссылка" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="ProxyUrl" Margin="0,2" ToolTip="socks5://127.0.0.1:1080, http://user:pass@host:3128" />
+                            <Button Grid.Column="2" Content="Разобрать" Click="ParseUrl_Click" Margin="6,2,0,2" />
+                            <TextBlock Grid.Row="1" Text="Тип" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="ProxyType" Margin="0,2" Width="160" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="SOCKS5" /><ComboBoxItem Content="HTTP" /><ComboBoxItem Content="HTTPS" />
+                            </ComboBox>
+                            <TextBlock Grid.Row="2" Text="Адрес" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="ProxyHost" Margin="0,2" />
+                            <TextBlock Grid.Row="3" Text="Порт" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="3" Grid.Column="1" x:Name="ProxyPort" Margin="0,2" Width="100" HorizontalAlignment="Left" />
+                            <TextBlock Grid.Row="4" Text="Логин" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="4" Grid.Column="1" x:Name="ProxyUser" Margin="0,2" ToolTip="необязательно" />
+                            <TextBlock Grid.Row="5" Text="Пароль" VerticalAlignment="Center" />
+                            <PasswordBox Grid.Row="5" Grid.Column="1" x:Name="ProxyPass" Margin="0,2" ToolTip="Хранится зашифрованным средствами Windows (DPAPI)" />
+                        </Grid>
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Content="Проверить маршрут и внешний IP" Click="CheckRoute_Click" />
+                            <Button Content="Сравнить: напрямую и через прокси" Click="CompareRoutes_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="RouteResult" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="DNS-проверка адресов">
+                    <StackPanel>
+                        <WrapPanel>
+                            <RadioButton x:Name="DnsSystem" Content="Системный DNS" GroupName="dns" />
+                            <RadioButton x:Name="DnsUdp" Content="Выбранный сервер (UDP)" GroupName="dns" />
+                            <RadioButton x:Name="DnsTcp" Content="Выбранный сервер (TCP, через маршрут)" GroupName="dns" />
+                            <RadioButton x:Name="DnsDoh" Content="DNS-over-HTTPS (через маршрут)" GroupName="dns" />
+                        </WrapPanel>
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                            <TextBlock Text="DNS-сервер" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="DnsServer" Margin="0,2" Width="200" HorizontalAlignment="Left" />
+                            <TextBlock Grid.Row="1" Text="Адрес DoH" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="DohUrl" Margin="0,2" />
+                        </Grid>
+                        <CheckBox x:Name="DnsIpv6" Content="Запрашивать IPv6 (AAAA)" Margin="0,6,0,0" />
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Ответы DNS напрямую и через прокси могут различаться (GeoDNS, CDN). Системный DNS и UDP всегда идут напрямую — для проверки «как видит прокси» выберите DoH или TCP. Браузер с SOCKS5-прокси разрешает имена на стороне прокси." />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Браузер для анализа сайтов">
+                    <StackPanel>
+                        <WrapPanel>
+                            <RadioButton x:Name="BrChromium" Content="Встроенный Chromium (Playwright)" GroupName="br" />
+                            <RadioButton x:Name="BrEdge" Content="Microsoft Edge (уже есть в Windows)" GroupName="br" />
+                            <RadioButton x:Name="BrChrome" Content="Google Chrome" GroupName="br" />
+                        </WrapPanel>
+                        <WrapPanel Margin="0,6,0,0">
+                            <TextBlock Text="Автообход: не более" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox x:Name="CrawlPages" Width="50" />
+                            <TextBlock Text="страниц, пауза" VerticalAlignment="Center" Margin="6,0" />
+                            <TextBox x:Name="CrawlDelay" Width="50" />
+                            <TextBlock Text="сек." VerticalAlignment="Center" Margin="6,0" />
+                            <Button Content="Установить Chromium" Click="InstallChromium_Click" Margin="12,0,0,0" />
+                        </WrapPanel>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Актуализация">
+                    <StackPanel>
+                        <WrapPanel>
+                            <CheckBox x:Name="AutoRefresh" Content="Автоматически обновлять адреса проектов, пока программа открыта — раз в" />
+                            <ComboBox x:Name="AutoRefreshPeriod" Width="130">
+                                <ComboBoxItem Content="6 часов" Tag="6" /><ComboBoxItem Content="сутки" Tag="24" /><ComboBoxItem Content="3 дня" Tag="72" /><ComboBoxItem Content="неделю" Tag="168" />
+                            </ComboBox>
+                        </WrapPanel>
+                        <WrapPanel Margin="0,6,0,0">
+                            <TextBlock Text="Параллельных DNS-запросов:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox x:Name="Concurrency" Width="50" />
+                            <TextBlock Text="пауза между запросами, мс:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                            <TextBox x:Name="DelayMs" Width="60" />
+                            <TextBlock Text="наблюдения «свежие», дней:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                            <TextBox x:Name="FreshDays" Width="50" />
+                        </WrapPanel>
+                        <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" x:Name="SchedulerHint" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Дополнительно">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                            <TextBlock Text="Путь к sing-box.exe" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="SingBoxPath" Margin="0,2" ToolTip="Нужен только для .srs (компиляция/чтение бинарных наборов правил)" />
+                            <Button Grid.Column="2" Content="…" Click="BrowseSingBox_Click" Margin="6,2,0,2" />
+                            <TextBlock Grid.Row="1" Text="Сервисы внешнего IP" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" x:Name="IpServices" Margin="0,2" ToolTip="Через запятую" />
+                        </Grid>
+                        <CheckBox x:Name="ShowUndetermined" Content="Показывать неопределённые соединения общих служб Windows во вкладке «Соединения»" Margin="0,6,0,0" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Content="Резервная копия базы" Click="Backup_Click" />
+                            <Button Content="Открыть папку данных" Click="OpenData_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="DataInfo" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
